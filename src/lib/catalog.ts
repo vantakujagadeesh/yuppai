@@ -29,9 +29,9 @@ export function searchCatalog(query: string) {
   const normalized = query.toLowerCase().trim();
   const duration = normalized.match(/(?:under|less than|below)\s+(\d+)\s*(?:minutes|min|hours|hour|h)/);
   const maxMinutes = duration ? (duration[0].includes("hour") || duration[0].includes("hours") || duration[0].includes(" h") ? Number(duration[1]) * 60 : Number(duration[1])) : undefined;
-  const terms = normalized.split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !["find", "show", "movie", "movies", "watch", "want"].includes(term));
+  const terms = normalized.split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !["find", "show", "movie", "movies", "watch", "want", "recommend", "recommendation", "recommendations", "suggest", "suggestions", "please", "tonight", "something", "give"].includes(term));
   return catalog.filter((title) => {
-    const text = [title.name, title.description, title.category, title.language, ...title.genres, ...title.mood, ...title.actors, ...title.tags].join(" ").toLowerCase();
+    const text = [title.name, title.description, title.category, title.language, ...title.genres, ...title.mood, ...title.actors, ...title.tags, title.song ?? ""].join(" ").toLowerCase();
     return (!terms.length || terms.some((term) => text.includes(term))) && (!maxMinutes || (title.durationMinutes !== undefined && title.durationMinutes <= maxMinutes));
   });
 }

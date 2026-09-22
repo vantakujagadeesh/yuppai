@@ -32,10 +32,23 @@ export async function answerChat(messages: ChatMessage[]) {
     console.error("AI provider unavailable; using catalog fallback", error);
   }
   const results = searchCatalog(latest);
-  if (/play|listen|song|music/i.test(latest) && results[0]) {
+  const wantsMusic = /play|listen|song|music|soundtrack/i.test(latest);
+  const wantsRecommendation = /recommend|suggest|what should i watch|tonight|something to watch|give me/i.test(latest);
+  const wantsMovie = /movie|film|cinema/i.test(latest);
+  const wantsSeries = /series|show|episode/i.test(latest);
+  if (wantsMusic && results[0]) {
     return { answer: `I found ${results[0].name}. Open it below to start playback.`, titleIds: [results[0].id], action: "play" as const };
   }
+  if (wantsRecommendation) {
+    const pool = wantsMovie ? catalog.filter((title) => title.category === "Movies") : wantsSeries ? catalog.filter((title) => title.category === "Series") : catalog.filter((title) => title.category !== "Live");
+    const picks = (results.length ? results : pool).filter((title) => title.category !== "Live").slice(0, 3);
+    return { answer: `Here are three picks to start with: ${picks.map((title) => title.name).join(", ")}.`, titleIds: picks.map((title) => title.id), action: "search" as const };
+  }
   if (results.length) return { answer: `I found ${results.slice(0, 3).map((title) => title.name).join(", ")} for you.`, titleIds: results.slice(0, 3).map((title) => title.id), action: "search" as const };
+  if (wantsMusic) {
+    const song = catalog.find((title) => title.song);
+    return { answer: song ? `I found the song “${song.song}” from ${song.name}. Open it below to start playback.` : "There are no playable songs in the current catalog yet.", titleIds: song ? [song.id] : [], action: song ? "play" as const : "none" as const };
+  }
   return { answer: "Tell me a genre, language, mood, duration, or title. For example: “find a warm Hindi family movie under two hours.”", titleIds: [], action: "none" as const };
 }
 
