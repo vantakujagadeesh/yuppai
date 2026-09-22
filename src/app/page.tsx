@@ -166,7 +166,7 @@ export default function Home() {
       const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      setAssistantMessages([...next, { role: "assistant", content: result.answer }]);
+      setAssistantMessages([...next, { role: "assistant", content: `${result.answer}${result.source === "catalog-fallback" ? " (Catalog mode: connect a valid AI key for conversational answers.)" : ""}` }]);
       const firstMatch = titles.find((title) => result.titleIds?.includes(title.id));
       if (firstMatch) setSelected(firstMatch);
     } catch {
@@ -310,7 +310,7 @@ export default function Home() {
           <div className="player-modal" role="dialog" aria-modal="true" aria-labelledby="player-title" onClick={(event) => event.stopPropagation()}>
             <button className="close-modal" onClick={() => setSelected(null)} aria-label="Close player">×</button>
             <div className={`player-screen ${selected.accent}`}>
-              {selected.video && !playbackError ? <video controls autoPlay playsInline src={selected.video} onError={() => setPlaybackError(true)} /> : <div className="coming-soon"><span className="poster-play">▶</span><p>Playback unavailable</p><small>This title is ready for a connected playback provider.</small></div>}
+              {selected.video && !playbackError ? <video controls autoPlay playsInline src={selected.video} onError={() => setPlaybackError(true)} /> : <div className="coming-soon"><span className="poster-play">▶</span><p>{selected.category === "Live" ? "Live stream not connected" : "Preview unavailable"}</p><small>{selected.category === "Live" ? "Add this channel’s HLS/DASH stream URL in the catalog before publishing." : "Add a licensed playback URL from your video provider before publishing."}</small></div>}
             </div>
             <div className="player-info"><p className="section-kicker">{selected.category} • {selected.meta}</p><h2 id="player-title">{selected.name}</h2><p>{selected.description}</p><button className="secondary-button" onClick={() => toggleWatchlist(selected.id)}>{watchlist.includes(selected.id) ? "✓ In my list" : "+ Add to my list"}</button></div>
           </div>

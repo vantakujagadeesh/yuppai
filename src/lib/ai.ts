@@ -27,7 +27,7 @@ export async function answerChat(messages: ChatMessage[]) {
   const latest = messages.at(-1)?.content ?? "";
   try {
     const provider = await providerRequest(messages);
-    if (provider) return sanitizeAnswer(provider);
+    if (provider) return { ...sanitizeAnswer(provider), source: "ai-provider" as const };
   } catch (error) {
     console.error("AI provider unavailable; using catalog fallback", error);
   }
@@ -37,19 +37,19 @@ export async function answerChat(messages: ChatMessage[]) {
   const wantsMovie = /movie|film|cinema/i.test(latest);
   const wantsSeries = /series|show|episode/i.test(latest);
   if (wantsMusic && results[0]) {
-    return { answer: `I found ${results[0].name}. Open it below to start playback.`, titleIds: [results[0].id], action: "play" as const };
+    return { answer: `I found ${results[0].song ? `“${results[0].song}” from ` : ""}${results[0].name}. Open it below to start playback.`, titleIds: [results[0].id], action: "play" as const, source: "catalog-fallback" as const };
   }
   if (wantsRecommendation) {
     const pool = wantsMovie ? catalog.filter((title) => title.category === "Movies") : wantsSeries ? catalog.filter((title) => title.category === "Series") : catalog.filter((title) => title.category !== "Live");
     const picks = (results.length ? results : pool).filter((title) => title.category !== "Live").slice(0, 3);
-    return { answer: `Here are three picks to start with: ${picks.map((title) => title.name).join(", ")}.`, titleIds: picks.map((title) => title.id), action: "search" as const };
+    return { answer: `Here are three picks to start with: ${picks.map((title) => title.name).join(", ")}.`, titleIds: picks.map((title) => title.id), action: "search" as const, source: "catalog-fallback" as const };
   }
-  if (results.length) return { answer: `I found ${results.slice(0, 3).map((title) => title.name).join(", ")} for you.`, titleIds: results.slice(0, 3).map((title) => title.id), action: "search" as const };
+  if (results.length) return { answer: `I found ${results.slice(0, 3).map((title) => title.name).join(", ")} for you.`, titleIds: results.slice(0, 3).map((title) => title.id), action: "search" as const, source: "catalog-fallback" as const };
   if (wantsMusic) {
     const song = catalog.find((title) => title.song);
-    return { answer: song ? `I found the song “${song.song}” from ${song.name}. Open it below to start playback.` : "There are no playable songs in the current catalog yet.", titleIds: song ? [song.id] : [], action: song ? "play" as const : "none" as const };
+    return { answer: song ? `I found the song “${song.song}” from ${song.name}. Open it below to start playback.` : "There are no playable songs in the current catalog yet.", titleIds: song ? [song.id] : [], action: song ? "play" as const : "none" as const, source: "catalog-fallback" as const };
   }
-  return { answer: "Tell me a genre, language, mood, duration, or title. For example: “find a warm Hindi family movie under two hours.”", titleIds: [], action: "none" as const };
+  return { answer: "Tell me a genre, language, mood, duration, or title. For example: “find a warm Hindi family movie under two hours.”", titleIds: [], action: "none" as const, source: "catalog-fallback" as const };
 }
 
 function sanitizeAnswer(value: { answer?: string; titleIds?: number[]; action?: string }) {
