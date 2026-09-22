@@ -29,6 +29,8 @@ npm run build
 
 `.github/workflows/ci.yml` runs on pushes to `main` and all pull requests targeting `main`. It uses a locked `npm ci` install, Node 20, linting, and a production build. The workflow is intentionally provider-neutral: connect the repository to Vercel, Netlify, or your preferred Next.js host for deployment after CI passes.
 
+Vercel deployment settings are checked into `vercel.json`. Import the repository into Vercel and leave the project settings at their defaults; Vercel will use `npm ci`, `npm run build`, and the Next.js framework configuration from that file. No project IDs, tokens, or environment secrets are committed.
+
 ## Product integration points
 
 The catalog data currently lives at the top of `src/app/page.tsx` so the MVP can be evaluated without a backend. For production, replace that array with a server-side catalog/API and replace the sample video URL with the authenticated playback URL from the chosen streaming provider. The watchlist currently uses browser `localStorage`; move it to the account service when authentication is introduced.
