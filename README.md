@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Yupp TV
 
-## Getting Started
+Yupp TV is a responsive streaming catalog MVP built with Next.js 16, React 19, and Tailwind CSS. The current product flow is deliberately self-contained so it works from a clean checkout:
 
-First, run the development server:
+- Browse movies, series, and live channels
+- Search titles by name, description, or category
+- Open a title detail/player view
+- Play the featured sample stream
+- Add and remove titles from a persistent local watchlist
+- Use the layout on mobile, tablet, and desktop
+
+## Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Before opening a pull request, run the same checks used by CI:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run build
+```
 
-## Learn More
+## Delivery pipeline
 
-To learn more about Next.js, take a look at the following resources:
+`.github/workflows/ci.yml` runs on pushes to `main` and all pull requests targeting `main`. It uses a locked `npm ci` install, Node 20, linting, and a production build. The workflow is intentionally provider-neutral: connect the repository to Vercel, Netlify, or your preferred Next.js host for deployment after CI passes.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Product integration points
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The catalog data currently lives at the top of `src/app/page.tsx` so the MVP can be evaluated without a backend. For production, replace that array with a server-side catalog/API and replace the sample video URL with the authenticated playback URL from the chosen streaming provider. The watchlist currently uses browser `localStorage`; move it to the account service when authentication is introduced.
