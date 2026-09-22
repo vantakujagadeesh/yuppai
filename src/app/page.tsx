@@ -91,6 +91,7 @@ const titles: Title[] = [
 ];
 
 const categories: Category[] = ["All", "Movies", "Series", "Live"];
+const defaultProfile = { language: "English", genre: "Family", mood: "warm" };
 
 function Icon({ children }: { children: React.ReactNode }) {
   return <span aria-hidden="true" className="icon">{children}</span>;
@@ -111,6 +112,10 @@ export default function Home() {
   const [voiceActive, setVoiceActive] = useState(false);
   const [recommendations, setRecommendations] = useState<Title[]>([]);
   const [playbackError, setPlaybackError] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profile, setProfile] = useState(defaultProfile);
+  const [recommendationReason, setRecommendationReason] = useState("");
+  const [continueWatching, setContinueWatching] = useState<Title[]>([]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("yupp-watchlist");
@@ -126,9 +131,16 @@ export default function Home() {
 
   useEffect(() => {
     const watchedIds = JSON.parse(window.localStorage.getItem("yupp-watch-history") ?? "[]") as number[];
-    fetch("/api/ai/recommendations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watchedIds }) })
+    const historyTitles = watchedIds.map((id) => titles.find((title) => title.id === id)).filter((title): title is Title => Boolean(title)).slice(0, 3);
+    const savedProfile = window.localStorage.getItem("yupp-profile");
+    const nextProfile = savedProfile ? JSON.parse(savedProfile) as typeof defaultProfile : defaultProfile;
+    window.setTimeout(() => {
+      setContinueWatching(historyTitles);
+      setProfile(nextProfile);
+    }, 0);
+    fetch("/api/ai/recommendations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watchedIds, preferences: nextProfile }) })
       .then((response) => response.json())
-      .then((data: { items?: Title[] }) => setRecommendations(data.items ?? []))
+      .then((data: { items?: Title[]; explanation?: string }) => { setRecommendations(data.items ?? []); setRecommendationReason(data.explanation ?? ""); })
       .catch(() => setRecommendations([]));
   }, [watchlist]);
 
@@ -201,6 +213,12 @@ export default function Home() {
     void fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ titleId: title.id, type: "play" }) });
   }
 
+  function saveProfile(next: typeof profile) {
+    setProfile(next);
+    window.localStorage.setItem("yupp-profile", JSON.stringify(next));
+    setProfileOpen(false);
+  }
+
   return (
     <main>
       <header className="site-header">
@@ -217,6 +235,7 @@ export default function Home() {
           <button className="watchlist-link" onClick={() => setShowWatchlist((value) => !value)}>
             <Icon>♡</Icon> My List <span className="list-count">{watchlist.length}</span>
           </button>
+          <button className="watchlist-link" onClick={() => setProfileOpen((value) => !value)}><Icon>◉</Icon> Taste</button>
           <button className="avatar" aria-label="Open account menu">AK</button>
         </div>
       </header>
@@ -244,6 +263,11 @@ export default function Home() {
         </div>
         <div className="hero-progress"><span /></div>
       </section>
+
+      {continueWatching.length > 0 && !showWatchlist && !query && (
+        <section className="continue-row"><div><p className="section-kicker">PICK UP WHERE YOU LEFT OFF</p><h2>Continue watching</h2></div><div className="continue-list">{continueWatching.map((title) => <button key={title.id} onClick={() => openTitle(title)}><span className={`mini-poster ${title.accent}`} /><span>{title.name}</span></button>)}</div></section>
+      )}
+      {profileOpen && <section className="profile-panel"><div><p className="section-kicker">YOUR TASTE PROFILE</p><h2>Make Yupp feel personal</h2><p>Recommendations use these preferences on this device. Sign in to sync them across screens.</p></div><label>Preferred language<select value={profile.language} onChange={(event) => setProfile({ ...profile, language: event.target.value })}>{["English", "Hindi", "Tamil", "Telugu", "Malayalam", "Kannada", "Bengali", "Marathi", "Punjabi"].map((value) => <option key={value}>{value}</option>)}</select></label><label>Favourite genre<select value={profile.genre} onChange={(event) => setProfile({ ...profile, genre: event.target.value })}>{["Family", "Drama", "Adventure", "Comedy", "Sports", "Food", "News"].map((value) => <option key={value}>{value}</option>)}</select></label><label>Preferred mood<select value={profile.mood} onChange={(event) => setProfile({ ...profile, mood: event.target.value })}>{["warm", "gripping", "uplifting", "comforting", "energetic", "inspiring"].map((value) => <option key={value}>{value}</option>)}</select></label><button className="primary-button" onClick={() => saveProfile(profile)}>Save taste profile</button></section>}
 
       <section className="catalog" id="browse">
         <div className="catalog-heading">
@@ -288,7 +312,7 @@ export default function Home() {
         {recommendations.length > 0 && !query && category === "All" && !showWatchlist && (
           <div className="recommendation-strip">
             <div><p className="section-kicker">PERSONALIZED FOR YOU</p><h2>Keep discovering</h2></div>
-            <div className="recommendation-list">{recommendations.slice(0, 4).map((title) => <button key={title.id} onClick={() => openTitle(title)}><span className={`mini-poster ${title.accent}`} /><span>{title.name}</span></button>)}</div>
+            <div><div className="recommendation-list">{recommendations.slice(0, 4).map((title) => <button key={title.id} onClick={() => openTitle(title)}><span className={`mini-poster ${title.accent}`} /><span>{title.name}</span></button>)}</div><small className="recommendation-reason">{recommendationReason}</small></div>
           </div>
         )}
       </section>
