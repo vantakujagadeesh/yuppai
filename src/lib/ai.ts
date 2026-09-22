@@ -8,21 +8,29 @@ async function providerRequest(messages: ChatMessage[]) {
   const response = await fetch(process.env.AI_BASE_URL ?? "https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model: process.env.AI_MODEL ?? "gpt-4o-mini", temperature: 0.2, response_format: { type: "json_object" }, messages: [
-      { role: "system", content: `You are Yupp TV assistant. Only recommend IDs from this catalog: ${JSON.stringify(catalog)}. Return JSON with answer (string), titleIds (number[]), and action ("play"|"search"|"none"). Never invent IDs or claim unavailable features.` },
+    body: JSON.stringify({ model: process.env.AI_MODEL ?? "gpt-4o-mini", temperature: 0.2, messages: [
+      { role: "system", content: `You are Yupp TV assistant. Only recommend IDs from this catalog: ${JSON.stringify(catalog)}. Return valid JSON with answer (string), titleIds (number[]), and action ("play"|"search"|"none"). Never invent IDs or claim unavailable features.` },
       ...messages,
     ] }),
-    signal: AbortSignal.timeout(12000),
+    signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS ?? 12000)),
   });
   if (!response.ok) throw new Error(`AI provider returned ${response.status}`);
   const body = await response.json();
-  return JSON.parse(body.choices?.[0]?.message?.content ?? "{}") as { answer?: string; titleIds?: number[]; action?: string };
+  const content = body.choices?.[0]?.message?.content;
+  if (typeof content !== "string") throw new Error("AI provider returned no message");
+  const json = content.match(/\{[\s\S]*\}/)?.[0];
+  if (!json) throw new Error("AI provider returned invalid JSON");
+  return JSON.parse(json) as { answer?: string; titleIds?: number[]; action?: string };
 }
 
 export async function answerChat(messages: ChatMessage[]) {
   const latest = messages.at(-1)?.content ?? "";
-  const provider = await providerRequest(messages);
-  if (provider) return sanitizeAnswer(provider);
+  try {
+    const provider = await providerRequest(messages);
+    if (provider) return sanitizeAnswer(provider);
+  } catch (error) {
+    console.error("AI provider unavailable; using catalog fallback", error);
+  }
   const results = searchCatalog(latest);
   if (/play|listen|song|music/i.test(latest) && results[0]) {
     return { answer: `I found ${results[0].name}. Open it below to start playback.`, titleIds: [results[0].id], action: "play" as const };
@@ -37,7 +45,11 @@ function sanitizeAnswer(value: { answer?: string; titleIds?: number[]; action?: 
 }
 
 export async function generateMetadata(title: CatalogTitle, language = "English") {
-  const provider = await providerRequest([{ role: "user", content: `Create a concise viewer summary in ${language} for title ${title.id}. Also return subtitle and translation availability.` }]);
-  if (provider?.answer) return { summary: provider.answer, language, subtitles: ["English"], translations: ["English", title.language] };
+  try {
+    const provider = await providerRequest([{ role: "user", content: `Create a concise viewer summary in ${language} for title ${title.id}. Return JSON with answer (string), titleIds (number[]), and action ("none").` }]);
+    if (provider?.answer) return { summary: provider.answer, language, subtitles: ["English"], translations: ["English", title.language] };
+  } catch (error) {
+    console.error("AI enrichment unavailable; using catalog metadata", error);
+  }
   return { summary: title.description, language, subtitles: ["English"], translations: ["English", title.language] };
 }
