@@ -34,3 +34,9 @@ Vercel deployment settings are checked into `vercel.json`. Import the repository
 ## Product integration points
 
 The catalog data currently lives at the top of `src/app/page.tsx` so the MVP can be evaluated without a backend. For production, replace that array with a server-side catalog/API and replace the sample video URL with the authenticated playback URL from the chosen streaming provider. The watchlist currently uses browser `localStorage`; move it to the account service when authentication is introduced.
+
+## AI and backend MVP
+
+The app now has server-side route handlers for catalog search (`/api/catalog`), recommendations (`/api/ai/recommendations`), the assistant (`/api/ai/chat`), metadata enrichment (`/api/ai/enrich`), and playback events (`/api/events`). The UI includes natural-language search, browser voice search, a Yupp AI assistant, watch-history recommendations, and automatic catalog tags for language, genre, mood, and cast.
+
+Copy `.env.example` to `.env.local` and set `OPENAI_API_KEY` to enable model-backed assistant answers and generated summaries. Without a key, the same endpoints use a deterministic, catalog-safe fallback so the published MVP remains usable and never exposes a secret to the browser. Before a public launch with real users, replace the in-memory event buffer and local storage with authenticated Postgres-backed user profiles, watch history, and entitlements.

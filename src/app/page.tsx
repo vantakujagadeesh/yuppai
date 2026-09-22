@@ -102,6 +102,14 @@ export default function Home() {
   const [watchlist, setWatchlist] = useState<number[]>([]);
   const [selected, setSelected] = useState<Title | null>(null);
   const [showWatchlist, setShowWatchlist] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantInput, setAssistantInput] = useState("");
+  const [assistantMessages, setAssistantMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([
+    { role: "assistant", content: "Hi! Ask me to find a movie, series, channel, or song. Try “find a warm family movie under two hours.”" },
+  ]);
+  const [assistantBusy, setAssistantBusy] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [recommendations, setRecommendations] = useState<Title[]>([]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("yupp-watchlist");
@@ -114,6 +122,14 @@ export default function Home() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    const watchedIds = JSON.parse(window.localStorage.getItem("yupp-watch-history") ?? "[]") as number[];
+    fetch("/api/ai/recommendations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watchedIds }) })
+      .then((response) => response.json())
+      .then((data: { items?: Title[] }) => setRecommendations(data.items ?? []))
+      .catch(() => setRecommendations([]));
+  }, [watchlist]);
 
   const filteredTitles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -135,6 +151,52 @@ export default function Home() {
       : [...watchlist, id];
     setWatchlist(next);
     window.localStorage.setItem("yupp-watchlist", JSON.stringify(next));
+  }
+
+  async function askAssistant(event?: React.FormEvent) {
+    event?.preventDefault();
+    const content = assistantInput.trim();
+    if (!content || assistantBusy) return;
+    const next = [...assistantMessages, { role: "user" as const, content }];
+    setAssistantMessages(next);
+    setAssistantInput("");
+    setAssistantBusy(true);
+    try {
+      const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setAssistantMessages([...next, { role: "assistant", content: result.answer }]);
+      const firstMatch = titles.find((title) => result.titleIds?.includes(title.id));
+      if (firstMatch) setSelected(firstMatch);
+    } catch {
+      setAssistantMessages([...next, { role: "assistant", content: "I couldn’t reach the assistant. You can still search the catalog above." }]);
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
+
+  function startVoiceSearch() {
+    const SpeechRecognition = (window as Window & { SpeechRecognition?: new () => { lang: string; start: () => void; stop: () => void; onstart: () => void; onend: () => void; onerror: () => void; onresult: (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void } }).SpeechRecognition;
+    if (!SpeechRecognition) {
+      setAssistantOpen(true);
+      setAssistantMessages((current) => [...current, { role: "assistant", content: "Voice search is not supported in this browser. Try Chrome or Safari, or type your request." }]);
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.onstart = () => setVoiceActive(true);
+    recognition.onend = () => setVoiceActive(false);
+    recognition.onerror = () => setVoiceActive(false);
+    recognition.onresult = (event) => setQuery(event.results[0][0].transcript);
+    recognition.start();
+  }
+
+  function openTitle(title: Title) {
+    setSelected(title);
+    const history = JSON.parse(window.localStorage.getItem("yupp-watch-history") ?? "[]") as number[];
+    const nextHistory = [title.id, ...history.filter((id) => id !== title.id)].slice(0, 20);
+    window.localStorage.setItem("yupp-watch-history", JSON.stringify(nextHistory));
+    void fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ titleId: title.id, type: "play" }) });
   }
 
   return (
@@ -164,7 +226,7 @@ export default function Home() {
           <p className="hero-copy">{titles[0].description}</p>
           <div className="hero-meta"><span>16+</span><span>•</span><span>{titles[0].meta}</span></div>
           <div className="hero-actions">
-            <button className="primary-button" onClick={() => setSelected(titles[0])}><Icon>▶</Icon> Watch now</button>
+            <button className="primary-button" onClick={() => openTitle(titles[0])}><Icon>▶</Icon> Watch now</button>
             <button className="secondary-button" onClick={() => toggleWatchlist(titles[0].id)}>
               <Icon>{watchlist.includes(titles[0].id) ? "✓" : "+"}</Icon>
               {watchlist.includes(titles[0].id) ? "In my list" : "My list"}
@@ -190,6 +252,7 @@ export default function Home() {
           <label className="search-box">
             <Icon>⌕</Icon>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search titles..." aria-label="Search titles" />
+            <button type="button" className={`voice-button ${voiceActive ? "recording" : ""}`} onClick={startVoiceSearch} aria-label="Search by voice">♩</button>
           </label>
         </div>
         <div className="filter-row">
@@ -204,7 +267,7 @@ export default function Home() {
           <div className="title-grid">
             {filteredTitles.map((title) => (
               <article className="title-card" key={title.id}>
-                <button className={`poster ${title.accent}`} onClick={() => setSelected(title)} aria-label={`Play ${title.name}`}>
+                <button className={`poster ${title.accent}`} onClick={() => openTitle(title)} aria-label={`Play ${title.name}`}>
                   <span className="poster-label">{title.category}</span>
                   <span className="poster-name">{title.name}</span>
                   {title.badge && <span className={`poster-badge ${title.badge === "LIVE" ? "live" : ""}`}>{title.badge}</span>}
@@ -220,7 +283,23 @@ export default function Home() {
         ) : (
           <div className="empty-state"><span>⌕</span><h3>No titles found</h3><p>Try another search or remove a filter.</p></div>
         )}
+        {recommendations.length > 0 && !query && category === "All" && !showWatchlist && (
+          <div className="recommendation-strip">
+            <div><p className="section-kicker">PERSONALIZED FOR YOU</p><h2>Keep discovering</h2></div>
+            <div className="recommendation-list">{recommendations.slice(0, 4).map((title) => <button key={title.id} onClick={() => openTitle(title)}><span className={`mini-poster ${title.accent}`} /><span>{title.name}</span></button>)}</div>
+          </div>
+        )}
       </section>
+
+      <button className="assistant-launcher" onClick={() => setAssistantOpen((open) => !open)} aria-label="Open Yupp TV AI assistant"><span>✦</span><b>Ask Yupp AI</b></button>
+      {assistantOpen && (
+        <section className="assistant-panel" aria-label="Yupp TV AI assistant">
+          <div className="assistant-header"><div><p className="section-kicker">YUPP AI</p><h2>Your watch companion</h2></div><button onClick={() => setAssistantOpen(false)} aria-label="Close assistant">×</button></div>
+          <div className="assistant-messages">{assistantMessages.map((message, index) => <p className={message.role} key={`${message.role}-${index}`}>{message.content}</p>)}{assistantBusy && <p className="assistant">Thinking…</p>}</div>
+          <form className="assistant-form" onSubmit={askAssistant}><input value={assistantInput} onChange={(event) => setAssistantInput(event.target.value)} placeholder="Find a movie, show, song..." aria-label="Ask Yupp AI" /><button type="submit" disabled={assistantBusy}>↑</button></form>
+          <small>AI answers use the Yupp catalog. Add OPENAI_API_KEY on the server for model-powered conversations.</small>
+        </section>
+      )}
 
       <footer><span className="brand small"><span className="brand-mark">Y</span>yupp<span className="brand-dot">.</span>tv</span><span>Made for the stories you want to keep watching.</span><span>© 2025 Yupp TV</span></footer>
 
