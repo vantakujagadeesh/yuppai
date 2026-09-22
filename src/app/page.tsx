@@ -110,6 +110,7 @@ export default function Home() {
   const [assistantBusy, setAssistantBusy] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
   const [recommendations, setRecommendations] = useState<Title[]>([]);
+  const [playbackError, setPlaybackError] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("yupp-watchlist");
@@ -193,6 +194,7 @@ export default function Home() {
 
   function openTitle(title: Title) {
     setSelected(title);
+    setPlaybackError(false);
     const history = JSON.parse(window.localStorage.getItem("yupp-watch-history") ?? "[]") as number[];
     const nextHistory = [title.id, ...history.filter((id) => id !== title.id)].slice(0, 20);
     window.localStorage.setItem("yupp-watch-history", JSON.stringify(nextHistory));
@@ -208,8 +210,8 @@ export default function Home() {
         </a>
         <nav className="desktop-nav" aria-label="Primary navigation">
           <a className="active" href="#browse">Browse</a>
-          <a href="#live">Live TV</a>
-          <a href="#sports">Sports</a>
+          <a href="#browse" onClick={() => setCategory("Live")}>Live TV</a>
+          <a href="#browse" onClick={() => setCategory("Live")}>Sports</a>
         </nav>
         <div className="header-actions">
           <button className="watchlist-link" onClick={() => setShowWatchlist((value) => !value)}>
@@ -308,7 +310,7 @@ export default function Home() {
           <div className="player-modal" role="dialog" aria-modal="true" aria-labelledby="player-title" onClick={(event) => event.stopPropagation()}>
             <button className="close-modal" onClick={() => setSelected(null)} aria-label="Close player">×</button>
             <div className={`player-screen ${selected.accent}`}>
-              {selected.video ? <video controls autoPlay playsInline src={selected.video} /> : <div className="coming-soon"><span className="poster-play">▶</span><p>Playback ready</p><small>Connect your content provider to stream this title.</small></div>}
+              {selected.video && !playbackError ? <video controls autoPlay playsInline src={selected.video} onError={() => setPlaybackError(true)} /> : <div className="coming-soon"><span className="poster-play">▶</span><p>Playback unavailable</p><small>This title is ready for a connected playback provider.</small></div>}
             </div>
             <div className="player-info"><p className="section-kicker">{selected.category} • {selected.meta}</p><h2 id="player-title">{selected.name}</h2><p>{selected.description}</p><button className="secondary-button" onClick={() => toggleWatchlist(selected.id)}>{watchlist.includes(selected.id) ? "✓ In my list" : "+ Add to my list"}</button></div>
           </div>
