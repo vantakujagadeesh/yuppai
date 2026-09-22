@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String      @id @default(cuid())
+  email     String      @unique
+  createdAt DateTime    @default(now())
+  watchlist Watchlist[]
+  events    WatchEvent[]
+}
+
+model Title {
+  id          String   @id @default(cuid())
+  provider    String
+  externalId  String
+  name        String
+  description String
+  category    String
+  language    String?
+  genres      String[]
+  streamUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  watchlist   Watchlist[]
+  events      WatchEvent[]
+  @@unique([provider, externalId])
+}
+
+model Watchlist {
+  userId    String
+  titleId   String
+  createdAt DateTime @default(now())
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     Title  @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  @@id([userId, titleId])
+}
+
+model WatchEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  titleId   String
+  type      String
+  position  Int?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     Title    @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+}
